@@ -7,13 +7,14 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using Tap.Zis3.Domain.Services.Reports.TemplateDtos;
 
-namespace DocxStructGenerator
+class DocxReportGenerator
 {
-    static void Main()
+    public static void Main()
     {
-        string templatePath = "template.docx";
-        string outputPath = "filled_document.docx";
+        string templatePath = DocxStructGenerator.filePath;
+        string outputPath = Path.Combine(AppContext.BaseDirectory, "Reports", "Templates", "FILLEDInformationAnalyticCardForComplexTemplate.docx"); ;
 
         var data = new InformationAnalyticCardForComplexTemplateDto
         {
@@ -61,7 +62,10 @@ namespace DocxStructGenerator
         var paragraphs = body.Elements<Paragraph>().ToList();
         for (int i = 0; i < paragraphs.Count; i++)
         {
-            var textElement = paragraphs[i].Elements<Run>().Select(r => r.GetFirstChild<Text>()).FirstOrDefault(t => t != null && t.Text.Contains("{#RepeatableBlockStart"));
+            var textElement = paragraphs[i]
+                .Elements<Run>()
+                .Select(r => r.GetFirstChild<Text>())
+                .FirstOrDefault(t => t != null && t.Text.Contains("{#RepeatableBlockStart"));
 
             if (textElement != null)
             {

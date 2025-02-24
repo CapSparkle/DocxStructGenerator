@@ -9,14 +9,14 @@ using DocumentFormat.OpenXml.Wordprocessing;
 
 class DocxStructGenerator
 {
-    public static string filePath =
-        Path.Combine(AppContext.BaseDirectory, "Reports", "Templates", "InformationAnalyticCardForComplexTemplate.docx");
-
-    public static string outputPath =
-            Path.Combine(AppContext.BaseDirectory, "Reports", "TemplateDtos", "InformationAnalyticCardForComplexTemplateDto.docx");
-
     public static void Main()
     {
+        public static string filePath = 
+            Path.Combine(AppContext.BaseDirectory, "Reports", "Templates", "InformationAnalyticCardForComplexTemplate.docx");
+        
+        string outputPath =
+            Path.Combine(AppContext.BaseDirectory, "Reports", "TemplateDtos", "InformationAnalyticCardForComplexTemplateDto.docx");
+
         var parsedBlocks = ParseDocx(filePath, "");
         string generatedCode = GenerateDtoClass(parsedBlocks);
 

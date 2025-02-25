@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DocxStructGenerator")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+13cbb9e58210e836198c539df0c8fa07360a91b4")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+129815cbaf1792125e4b0d1b6eec8460fd534013")]
 [assembly: System.Reflection.AssemblyProductAttribute("DocxStructGenerator")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DocxStructGenerator")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

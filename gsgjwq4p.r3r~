@@ -69,52 +69,28 @@ class DocxReportGenerator
     private static void ProcessRepeatableBlocks<T>(Body body, T data)
     {
         var paragraphs = body.Elements<Paragraph>().ToList();
-        int i = 0;
-
-        while (i < paragraphs.Count)
+        for (int i = 0; i < paragraphs.Count; i++)
         {
-            Paragraph paragraph = paragraphs[i];
+            var textElement = paragraphs[i]
+                .Elements<Run>()
+                .Select(r => r.GetFirstChild<Text>())
+                .FirstOrDefault(t => t != null && t.Text.Contains("{#RepeatableBlockStart"));
 
-            // Check if this is a tag-paragraph (Start of Block or RepeatableBlock)
-            if (FindRunsContainingTag(paragraph, out _, out _, blockStartRegex))
+            if (textElement != null)
             {
-                // Extract repeatable block metadata
-                string tagText = paragraph.InnerText.Trim('{', '}');
+                string tagText = textElement.Text.Trim('{', '}');
                 string[] parts = tagText.Split(':');
-
-                if (parts.Length == 3 && (parts[0] == "#BlockStart" || parts[0] == "#RepeatableBlockStart"))
+                if (parts.Length == 3 && parts[0] == "#RepeatableBlockStart")
                 {
                     string className = parts[1];
                     string propertyName = parts[2];
 
-                    // Find the corresponding end tag paragraph
-                    var endTagParagraph = paragraphs.FirstOrDefault(p => p.InnerText.Contains("{#BlockEnd:" + className) ||
-                                                                          p.InnerText.Contains("{#RepeatableBlockEnd:" + className));
-                    if (endTagParagraph == null) continue;
-
-                    // Extract all paragraphs between start & end tags
-                    var blockContent = ExtractBlockContent(paragraphs, paragraph, endTagParagraph);
-                    if (blockContent.Count == 0) continue;
-
-                    // Find the property in the data object
-                    var property = typeof(T).GetProperty(propertyName);
-                    if (property != null)
+                    var blockContent = ExtractBlockContent(paragraphs, i, className, propertyName);
+                    if (blockContent != null)
                     {
-                        // If it's a simple block (single object)
-                        if (!typeof(System.Collections.IEnumerable).IsAssignableFrom(property.PropertyType))
-                        {
-                            var value = property.GetValue(data);
-                            if (value != null)
-                            {
-                                ReplacePlaceholders(blockContent, value);
-                                foreach (var element in blockContent)
-                                {
-                                    paragraph.InsertBeforeSelf(element);
-                                }
-                            }
-                        }
-                        // If it's a repeatable block (list of objects)
-                        else
+                        // Find the corresponding property in the data object
+                        var property = typeof(T).GetProperty(propertyName);
+                        if (property != null && typeof(System.Collections.IEnumerable).IsAssignableFrom(property.PropertyType))
                         {
                             var list = (System.Collections.IEnumerable)property.GetValue(data);
                             if (list != null)
@@ -125,31 +101,27 @@ class DocxReportGenerator
                                     ReplacePlaceholders(clonedBlock, item);
                                     foreach (var element in clonedBlock)
                                     {
-                                        paragraph.InsertBeforeSelf(element);
+                                        body.InsertAfter(element, paragraphs[i]); // Insert after the original block
                                     }
                                 }
                             }
                         }
                     }
 
-                    // Remove tag-paragraphs (start & end)
-                    paragraph.Remove();
-                    endTagParagraph.Remove();
+                    // Step 3: Remove tag-paragraphs
+                    paragraphs[i].Remove(); // Remove {#RepeatableBlockStart}
+                    paragraphs.RemoveAt(i); // Shift index to point at next paragraph
 
-                    // Skip to the next paragraph (to avoid reprocessing removed elements)
-                    i++;
-                    continue;
+                    var endTagIndex = paragraphs.FindIndex(p => p.InnerText.Contains("{#RepeatableBlockEnd"));
+                    if (endTagIndex >= 0)
+                    {
+                        paragraphs[endTagIndex].Remove(); // Remove {#RepeatableBlockEnd}
+                        paragraphs.RemoveAt(endTagIndex);
+                    }
                 }
             }
-
-            // If it's not a tag-paragraph, replace placeholders for the main object
-            ReplacePlaceholders(new List<OpenXmlElement> { paragraph }, data);
-
-            i++; // Move to the next paragraph
         }
     }
-
-
 
     private static List<OpenXmlElement> ExtractBlockContent(List<Paragraph> paragraphs, int startIndex, string className, string propertyName)
     {
@@ -222,10 +194,7 @@ class DocxReportGenerator
 
     static void NormalizeParagraph(Paragraph paragraph)
     {
-        while (FindRunsContainingTag(paragraph, out int firstRunIndex, out int lastRunIndex,
-            blockStartRegex, 
-            blockEndRegex,
-            Regex))
+        while (FindRunsContainingTag(paragraph, out int firstRunIndex, out int lastRunIndex, blockStartRegex, blockEndRegex))
         {
             CutOffTagParagraph(paragraph, firstRunIndex, lastRunIndex);
         }

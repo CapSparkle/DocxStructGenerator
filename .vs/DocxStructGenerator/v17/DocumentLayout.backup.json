@@ -3,12 +3,12 @@
   "WorkspaceRootPath": "C:\\Users\\Fesko\\source\\DocxStructGenerator\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{52571C14-73F1-4E6C-B266-E3B2B2E36277}|DocxStructGenerator.csproj|c:\\users\\fesko\\source\\docxstructgenerator\\docxstructgenerator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{52571C14-73F1-4E6C-B266-E3B2B2E36277}|DocxStructGenerator.csproj|solutionrelative:docxstructgenerator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{52571C14-73F1-4E6C-B266-E3B2B2E36277}|DocxStructGenerator.csproj|c:\\users\\fesko\\source\\docxstructgenerator\\docxreportgenerator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{52571C14-73F1-4E6C-B266-E3B2B2E36277}|DocxStructGenerator.csproj|solutionrelative:docxreportgenerator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{52571C14-73F1-4E6C-B266-E3B2B2E36277}|DocxStructGenerator.csproj|c:\\users\\fesko\\source\\docxstructgenerator\\docxstructgenerator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{52571C14-73F1-4E6C-B266-E3B2B2E36277}|DocxStructGenerator.csproj|solutionrelative:docxstructgenerator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{52571C14-73F1-4E6C-B266-E3B2B2E36277}|DocxStructGenerator.csproj|c:\\users\\fesko\\source\\docxstructgenerator\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -29,7 +29,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 3,
+          "SelectedChildIndex": 2,
           "Children": [
             {
               "$type": "Bookmark",
@@ -45,31 +45,30 @@
               "RelativeToolTip": "InformationAnalyticCardForComplexTemplateDto.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAUAAAA6AAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-02-23T10:13:38.78Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-02-23T10:13:38.78Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 0,
               "Title": "DocxReportGenerator.cs",
               "DocumentMoniker": "C:\\Users\\Fesko\\source\\DocxStructGenerator\\DocxReportGenerator.cs",
               "RelativeDocumentMoniker": "DocxReportGenerator.cs",
               "ToolTip": "C:\\Users\\Fesko\\source\\DocxStructGenerator\\DocxReportGenerator.cs",
               "RelativeToolTip": "DocxReportGenerator.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAEMAAAA0AAAAAAAAAA==",
+              "ViewState": "AgIAADYAAAAAAAAAAAAowC8AAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-02-23T10:12:22.551Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 1,
               "Title": "DocxStructGenerator.cs",
               "DocumentMoniker": "C:\\Users\\Fesko\\source\\DocxStructGenerator\\DocxStructGenerator.cs",
               "RelativeDocumentMoniker": "DocxStructGenerator.cs",
               "ToolTip": "C:\\Users\\Fesko\\source\\DocxStructGenerator\\DocxStructGenerator.cs",
               "RelativeToolTip": "DocxStructGenerator.cs",
-              "ViewState": "AgIAABYAAAAAAAAAAAAgwCUAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAABYAAAAAAAAAAAAgwCwAAAAiAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-02-21T06:16:41.703Z",
               "EditorCaption": ""
@@ -96,8 +95,7 @@
               "RelativeToolTip": "Program.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAMAAAAVAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-02-21T05:59:53.233Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-02-21T05:59:53.233Z"
             }
           ]
         }

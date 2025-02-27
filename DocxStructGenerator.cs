@@ -15,7 +15,7 @@ class DocxStructGenerator
         Path.Combine(baseFolder, "Reports", "Templates", "InformationAnalyticCardForComplexTemplate.docx");
 
     public static string outputPath =
-            Path.Combine(baseFolder, "Reports", "TemplateDtos", "InformationAnalyticCardForComplexTemplateDto.docx");
+            Path.Combine(baseFolder, "Reports", "TemplateDtos", "InformationAnalyticCardForComplexTemplateDto.cs");
 
     public static void Main()
     {
@@ -50,7 +50,7 @@ class DocxStructGenerator
             {
                 string text = para.InnerText.Trim();
 
-                // Detect block start with property name
+                // Detect block start
                 var startMatch = blockStartRegex.Match(text);
                 if (startMatch.Success)
                 {
@@ -66,7 +66,7 @@ class DocxStructGenerator
                     continue;
                 }
 
-                // Detect block end with property name
+                // Detect block end
                 var endMatch = blockEndRegex.Match(text);
                 if (endMatch.Success)
                 {
@@ -82,7 +82,7 @@ class DocxStructGenerator
                     continue;
                 }
 
-                // Detect table row
+                // Detect table row properties
                 var tableMatch = tableRowRegex.Match(text);
                 if (tableMatch.Success)
                 {
@@ -137,19 +137,19 @@ class DocxStructGenerator
         sb.AppendLine($"{indent}public class {block.Name}");
         sb.AppendLine($"{indent}{{");
 
-        // Fields
+        // Fields (Simple text placeholders)
         foreach (var field in block.Fields)
         {
             sb.AppendLine($"{indent}    public string {field} {{ get; set; }}");
         }
 
-        // Tables (nested structures for table rows)
+        // Tables (Generate List<T> for table rows)
         foreach (var child in block.Children.Where(c => c.IsRepeatable && c.Name == c.PropertyName))
         {
             sb.AppendLine($"{indent}    public List<{child.Name}> {child.PropertyName} {{ get; set; }} = new List<{child.Name}>();");
         }
 
-        // Nested Blocks (non-table repeatable blocks)
+        // Nested Blocks (repeatable sections, not tables)
         foreach (var child in block.Children.Where(c => c.IsRepeatable && c.Name != c.PropertyName))
         {
             sb.AppendLine($"{indent}    public List<{child.Name}> {child.PropertyName} {{ get; set; }} = new List<{child.Name}>();");
@@ -163,11 +163,11 @@ class DocxStructGenerator
 
         sb.AppendLine($"{indent}}}");
 
-        // Generate nested structs
-        //foreach (var child in block.Children)
-        //{
-        //    GenerateStruct(sb, child, indentLevel);
-        //}
+        // Generate nested table row DTOs
+        foreach (var child in block.Children)
+        {
+            GenerateStruct(sb, child, indentLevel);
+        }
     }
 }
 

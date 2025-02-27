@@ -271,7 +271,7 @@ class DocxReportGenerator
                         continue;
 
                     // Extract property name from the tag
-                    string propertyName = ((Match)matchGroups.First());
+                    string propertyName = matchGroups.First().Key; //((Match)matchGroups.First().First()).Value.Trim('{', '}').Split(":")[1];
 
                     var property = data.GetType().GetProperty(propertyName);
                     if (property == null || !typeof(System.Collections.IEnumerable).IsAssignableFrom(property.PropertyType))

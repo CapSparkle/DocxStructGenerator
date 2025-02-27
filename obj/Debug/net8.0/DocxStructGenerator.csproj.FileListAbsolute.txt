@@ -20,3 +20,5 @@ C:\Users\FeskovichAO\source\repos\DocxStructGenerator\obj\Debug\net8.0\refint\Do
 C:\Users\FeskovichAO\source\repos\DocxStructGenerator\obj\Debug\net8.0\DocxStructGenerator.pdb
 C:\Users\FeskovichAO\source\repos\DocxStructGenerator\obj\Debug\net8.0\DocxStructGenerator.genruntimeconfig.cache
 C:\Users\FeskovichAO\source\repos\DocxStructGenerator\obj\Debug\net8.0\ref\DocxStructGenerator.dll
+C:\Users\FeskovichAO\source\repos\DocxStructGenerator\obj\Debug\net8.0\DocxStructGenerator.sourcelink.json
+C:\Users\FeskovichAO\source\repos\DocxStructGenerator\bin\Debug\net8.0\DocumentFormat.OpenXml.Framework.dll

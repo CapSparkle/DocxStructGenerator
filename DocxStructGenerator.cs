@@ -9,11 +9,13 @@ using DocumentFormat.OpenXml.Wordprocessing;
 
 class DocxStructGenerator
 {
+    public static string baseFolder = @"C:\Users\FeskovichAO\Documents\GitHub\gs-neoland-backend\src\Tap.Zis3.Domain.Services";//AppContext.BaseDirectory
+
     public static string filePath =
-        Path.Combine(AppContext.BaseDirectory, "Reports", "Templates", "InformationAnalyticCardForComplexTemplate.docx");
+        Path.Combine(baseFolder, "Reports", "Templates", "InformationAnalyticCardForComplexTemplate.docx");
 
     public static string outputPath =
-            Path.Combine(AppContext.BaseDirectory, "Reports", "TemplateDtos", "InformationAnalyticCardForComplexTemplateDto.docx");
+            Path.Combine(baseFolder, "Reports", "TemplateDtos", "InformationAnalyticCardForComplexTemplateDto.docx");
 
     public static void Main()
     {

@@ -10,6 +10,8 @@ using System.Threading.Tasks;
 using Tap.Zis3.Domain.Services.Reports.TemplateDtos;
 using System.Text.RegularExpressions;
 using DocumentFormat.OpenXml.Office2010.Word.DrawingGroup;
+using System.Xml.Linq;
+using LanguageExt;
 
 class DocxReportGenerator
 {
@@ -18,10 +20,12 @@ class DocxReportGenerator
     static Regex blockTagStartRegex = new Regex(@"\{#");
     static Regex blockTagEndRegex = new Regex(@"\}");
 
+    static Regex tableRowRegex = new Regex(@"\{#(tableRow):([\w\d_]+):([\w\d_]+)\}");
+
     public static void Main()
     {
         string templatePath = DocxStructGenerator.filePath;
-        string outputPath = Path.Combine(AppContext.BaseDirectory, "Reports", "Templates", "FILLEDInformationAnalyticCardForComplexTemplate.docx"); ;
+        string outputPath = Path.Combine(DocxStructGenerator.baseFolder, "Reports", "Templates", "FILLEDInformationAnalyticCardForComplexTemplate.docx"); ;
 
         var data = new InformationAnalyticCardForComplexTemplateDto
         {
@@ -59,7 +63,7 @@ class DocxReportGenerator
                 ProcessRepeatableBlocks(body, data);
 
                 // Step 2: Replace all placeholders in remaining text
-                ReplacePlaceholders(body, data);
+                //ReplacePlaceholders(body, data);
 
                 document.Save();
             }
@@ -68,18 +72,27 @@ class DocxReportGenerator
 
     private static void ProcessRepeatableBlocks<T>(Body body, T data)
     {
-        var paragraphs = body.Elements<Paragraph>().ToList();
+        var docElements = body.Elements<OpenXmlElement>().ToList();
         int i = 0;
 
-        while (i < paragraphs.Count)
+        for (; i < docElements.Count; i++)
         {
-            Paragraph paragraph = paragraphs[i];
+            OpenXmlElement docElement = docElements[i];
 
             // Check if this is a tag-paragraph (Start of Block or RepeatableBlock)
-            if (FindRunsContainingTag(paragraph, out _, out _, blockStartRegex))
+
+            Paragraph paragraph = docElement as Paragraph;
+
+            //if (paragraph is null) {
+            //    //fill table
+            //    continue;
+            //}
+
+            if (paragraph != null 
+                && FindRunsContainingTag(paragraph, out _, out _, blockStartRegex, blockEndRegex))
             {
                 // Extract repeatable block metadata
-                string tagText = paragraph.InnerText.Trim('{', '}');
+                string tagText = docElement.InnerText.Trim('{', '}');
                 string[] parts = tagText.Split(':');
 
                 if (parts.Length == 3 && (parts[0] == "#BlockStart" || parts[0] == "#RepeatableBlockStart"))
@@ -88,13 +101,20 @@ class DocxReportGenerator
                     string propertyName = parts[2];
 
                     // Find the corresponding end tag paragraph
-                    var endTagParagraph = paragraphs.FirstOrDefault(p => p.InnerText.Contains("{#BlockEnd:" + className) ||
-                                                                          p.InnerText.Contains("{#RepeatableBlockEnd:" + className));
-                    if (endTagParagraph == null) continue;
+                    var endTagParagraph = docElements.FirstOrDefault(
+                        p => p.InnerText.Contains("{#BlockEnd:" + className) 
+                        || p.InnerText.Contains("{#RepeatableBlockEnd:" + className)) 
+                            as Paragraph;
+
+                    if (endTagParagraph == null)
+                    {
+                        throw new Exception("Template markup syntax error");
+                    }
 
                     // Extract all paragraphs between start & end tags
-                    var blockContent = ExtractBlockContent(paragraphs, paragraph, endTagParagraph);
-                    if (blockContent.Count == 0) continue;
+                    var blockContent = ExtractBlockContent(docElements, paragraph, endTagParagraph);
+                    if (blockContent.Count == 0)  
+                        continue;
 
                     // Find the property in the data object
                     var property = typeof(T).GetProperty(propertyName);
@@ -107,25 +127,45 @@ class DocxReportGenerator
                             if (value != null)
                             {
                                 ReplacePlaceholders(blockContent, value);
-                                foreach (var element in blockContent)
-                                {
-                                    paragraph.InsertBeforeSelf(element);
-                                }
                             }
                         }
                         // If it's a repeatable block (list of objects)
                         else
                         {
-                            var list = (System.Collections.IEnumerable)property.GetValue(data);
+                            System.Collections.IEnumerable list = (System.Collections.IEnumerable)property.GetValue(data);
+
                             if (list != null)
                             {
-                                foreach (var item in list)
+                                var enumerator = list.GetEnumerator();
+                                enumerator.MoveNext();
+                                object current;
+
+                                if (enumerator.Current != null)
                                 {
-                                    var clonedBlock = blockContent.Select(el => el.CloneNode(true)).ToList();
-                                    ReplacePlaceholders(clonedBlock, item);
-                                    foreach (var element in clonedBlock)
+                                    current = enumerator.Current;
+
+                                    var clonedBlock = blockContent.Select(el => el.CloneNode(true))
+                                        .ToList();
+                                    
+                                    ReplacePlaceholders(blockContent, current);
+
+                                    while (enumerator.MoveNext()) 
                                     {
-                                        paragraph.InsertBeforeSelf(element);
+                                        current = enumerator.Current;
+
+                                        var lastBlockElement = blockContent.Last();
+                                        foreach (var element in clonedBlock)
+                                        {
+                                            lastBlockElement.Parent.InsertBefore(element, lastBlockElement);
+                                            //lastBlockElement.InsertAfterSelf(element);
+                                            lastBlockElement = element;
+                                        }
+
+                                        blockContent = clonedBlock;
+
+                                        clonedBlock = blockContent.Select(el => el.CloneNode(true)).ToList();
+
+                                        ReplacePlaceholders(blockContent, current);
                                     }
                                 }
                             }
@@ -133,44 +173,46 @@ class DocxReportGenerator
                     }
 
                     // Remove tag-paragraphs (start & end)
-                    paragraph.Remove();
+                    docElement.Remove();
                     endTagParagraph.Remove();
 
                     // Skip to the next paragraph (to avoid reprocessing removed elements)
-                    i++;
                     continue;
                 }
             }
 
             // If it's not a tag-paragraph, replace placeholders for the main object
-            ReplacePlaceholders(new List<OpenXmlElement> { paragraph }, data);
-
-            i++; // Move to the next paragraph
+            ReplacePlaceholders(new List<OpenXmlElement> { docElement }, data);
         }
     }
 
-
-
-    private static List<OpenXmlElement> ExtractBlockContent(List<Paragraph> paragraphs, int startIndex, string className, string propertyName)
+    private static List<OpenXmlElement> ExtractBlockContent(List<OpenXmlElement> docElements, Paragraph startTag, Paragraph endTag)
     {
         List<OpenXmlElement> blockContent = new List<OpenXmlElement>();
-        int i = startIndex + 1;
+        bool insideBlock = false;
 
-        while (i < paragraphs.Count)
+        foreach (var element in docElements)
         {
-            var textElement = paragraphs[i].Elements<Run>().Select(r => r.GetFirstChild<Text>()).FirstOrDefault(t => t != null && t.Text.Contains("{#RepeatableBlockEnd"));
-
-            if (textElement != null && textElement.Text.Contains($"{className}:{propertyName}"))
+            if (element == startTag)
             {
-                break;
+                insideBlock = true;
+                continue; // Skip the start tag itself
             }
 
-            blockContent.Add(paragraphs[i]);
-            i++;
+            if (element == endTag)
+            {
+                break; // Stop when reaching the end tag
+            }
+
+            if (insideBlock)
+            {
+                blockContent.Add(element); // Clone to avoid modifying original references
+            }
         }
 
         return blockContent;
     }
+
 
     private static void ReplacePlaceholders(IEnumerable<OpenXmlElement> elements, object data)
     {
@@ -178,19 +220,82 @@ class DocxReportGenerator
 
         foreach (var element in elements)
         {
-            foreach (var text in element.Descendants<Text>())
+            //element либо Table либо Paragraph
+            
+            //Вставка обычных тэгов
+            foreach (var key in replacements.Keys)
             {
-                if (text != null)
+                var keyTag = $"{{{key}}}";
+
+                int i = 0, maxIterations = 1000;
+                for (i = 0; (i < maxIterations) && (element.InnerText.Contains(keyTag)); i++)
                 {
-                    foreach (var key in replacements.Keys)
+                    //{ключ} может оказаться разбитым по нескольким Text или даже Run
+                    //Поэтому явно вынесем его в один Text одного Run
+                    var run = MoveTagIntoSingleTextOfRun(element.Descendants<Run>().ToList(), keyTag);
+
+                    var text = run.Elements<Text>().First();
+
+                    if (text.Text.Contains($"{{{key}}}"))
                     {
-                        if (text.Text.Contains($"{{{key}}}"))
-                        {
-                            text.Text = text.Text.Replace($"{{{key}}}", replacements[key]);
-                        }
+                        text.Text = text.Text.Replace($"{{{key}}}", replacements[key]);
+                    }
+                    else
+                    {
+                        throw new Exception("Сбой в работе алгоритма объединения тэгов");
                     }
                 }
+
+                if(i == maxIterations)
+                {
+                    throw new Exception("Выполнено прерывание вечного цикла");
+                }
             }
+
+            //Вставка табличных значений
+            if(element is Table table)
+            {
+                var tableRows = table.Elements<TableRow>();
+                foreach (TableRow tableRow in tableRows)
+                {
+                    var matches = tableRowRegex.Matches(tableRow.InnerText);
+
+                    var matchGroups = matches.GroupBy(x => {
+                        var pieces = x.Value.Split(':');
+                        return pieces[1];
+                    });
+
+                    if(matchGroups.Count() > 1)
+                        throw new Exception("Нарушение разметки - в одной строке таблицы более одного типа тэга");
+                    else if(matchGroups.Count() == 0)
+                        continue;
+
+                    // Extract property name from the tag
+                    string propertyName = ((Match)matchGroups.First());
+
+                    var property = data.GetType().GetProperty(propertyName);
+                    if (property == null || !typeof(System.Collections.IEnumerable).IsAssignableFrom(property.PropertyType))
+                        throw new Exception($"Property '{propertyName}' not found or is not a list.");
+
+                    var list = (System.Collections.IEnumerable)property.GetValue(data);
+                    if (list == null) continue;
+
+                    // Store the last row where new rows should be inserted after
+                    OpenXmlElement lastInsertedRow = tableRow;
+
+                    foreach (var item in list)
+                    {
+                        var newRow = (TableRow)tableRow.CloneNode(true);
+                        ReplacePlaceholders(new List<OpenXmlElement> { newRow }, item);
+                        lastInsertedRow.InsertAfterSelf(newRow);
+                        lastInsertedRow = newRow; // Update last inserted row reference
+                    }
+
+                    // Remove the original template row with placeholders
+                    tableRow.Remove();
+                }            
+            }
+
         }
     }
 
@@ -202,7 +307,16 @@ class DocxReportGenerator
         Type type = obj.GetType();
         foreach (PropertyInfo property in type.GetProperties())
         {
-            values[property.Name] = property.GetValue(obj)?.ToString() ?? "";
+            if (property.PropertyType == typeof(string))
+            {
+                values[property.Name] = property.GetValue(obj)?.ToString() ?? "";
+
+                if (values[property.Name] == $"{{{property.Name}}}")
+                {
+                    throw new Exception("недопустимое значение - якорь равняется вставляемому значению");
+                }
+            }
+
         }
         return values;
     }
@@ -222,12 +336,11 @@ class DocxReportGenerator
 
     static void NormalizeParagraph(Paragraph paragraph)
     {
-        while (FindRunsContainingTag(paragraph, out int firstRunIndex, out int lastRunIndex,
-            blockStartRegex, 
-            blockEndRegex,
-            Regex))
+        while (FindRunsContainingTag(paragraph, out int firstRunIndex, out int lastRunIndex, blockStartRegex, blockEndRegex)
+                && ((firstRunIndex > 0)
+                    || (lastRunIndex < (paragraph.Descendants<Run>().Count() - 1))))
         {
-            CutOffTagParagraph(paragraph, firstRunIndex, lastRunIndex);
+            ExtractTagParagraph(paragraph, firstRunIndex, lastRunIndex);
         }
     }
 
@@ -267,7 +380,8 @@ class DocxReportGenerator
         int currentCharIndex = 0;
 
         // Step 3: Find which runs contain the match
-        for(int i = 0; i < runs.Count; i++)
+        int i = 0;
+        for (; i < runs.Count; i++)
         {
             string runText = runs[i].InnerText;
             int runLength = runText.Length;
@@ -280,27 +394,80 @@ class DocxReportGenerator
             }
             else if(firstRunIndex != -1)
             {
-                lastRunIndex = i;
                 break;
             }
 
             currentCharIndex += runLength;
         }
 
+        lastRunIndex = i - 1;
+
         return true;
     }
 
-    /// <summary>
-    /// Вырезать новый параграф из старого.
-    /// </summary>
-    /// <remarks>
-    /// Для корректной работы функции предполагается, что в <paramref name="originalParagraph"/>
-    /// присутствуют только Run -ы и ParagraphProperties
-    /// </remarks>
-    /// <param name="originalParagraph"></param>
-    /// <param name="firstRunIndex"></param>
-    /// <returns>Последний (нижний) по ходу документа параграф</returns>
-    public static void CutOffTagParagraph(Paragraph originalParagraph, int firstRunIndex, int lastRunIndex)
+    public static Run MoveTagIntoSingleTextOfRun(List<Run> runs, string tag)
+    {
+        List<OpenXmlElement> elementsWithTag = new();
+        StringBuilder allTextsSymbols = new StringBuilder("");
+
+        var elements = runs.SelectMany(run => run.Elements<OpenXmlElement>())
+            .Where(elem => (elem is Text) || (elem is SymbolChar))
+            .ToList();
+
+        if (elements.Count() == 0)
+            throw new Exception("No tag inside runs");
+
+        int j = 0;
+        for (; !allTextsSymbols.ToString().Contains(tag); j++)
+        {
+            elementsWithTag.Add(elements[j]);
+            allTextsSymbols.Append(elements[j].InnerText);
+        }
+
+        for (j = 0; allTextsSymbols.ToString().Contains(tag); j++)
+        {
+            elementsWithTag.RemoveAt(0);
+            allTextsSymbols.Remove(0, elements[j].InnerText.Length);
+        }
+
+        j--;
+
+
+        elementsWithTag.Add(elements[j]);
+        allTextsSymbols.Insert(0, elements[j].InnerText);
+
+        if (elementsWithTag.Count() == 0)
+            throw new Exception("No tag inside runs");
+
+        Run runToPutAfter = (Run)elements[j].Parent!;
+        Run newRun = (Run)runToPutAfter.CloneNode(false);
+
+        runToPutAfter.Parent!.InsertAfter(newChild: newRun, runToPutAfter);
+
+        foreach (var element in elementsWithTag)
+        {
+            element.Remove();
+            //newRun.AppendChild(element);
+        }
+
+        newRun.AppendChild<Text>(new Text(allTextsSymbols.ToString()));
+
+        return newRun;
+    }
+
+
+
+/// <summary>
+/// Вырезать новый параграф из старого.
+/// </summary>
+/// <remarks>
+/// Для корректной работы функции предполагается, что в <paramref name="originalParagraph"/>
+/// присутствуют только Run -ы и ParagraphProperties
+/// </remarks>
+/// <param name="originalParagraph"></param>
+/// <param name="firstRunIndex"></param>
+/// <returns>Последний (нижний) по ходу документа параграф</returns>
+public static void ExtractTagParagraph(Paragraph originalParagraph, int firstRunIndex, int lastRunIndex)
     {
         List<Run> originalRuns;
         
@@ -321,7 +488,7 @@ class DocxReportGenerator
         if (firstRunIndex > 0)
         {
             Paragraph newParagraph = SplitParagraph(originalParagraph, firstRunIndex)!;
-            originalParagraph.InsertBeforeSelf(newParagraph);
+            originalParagraph.Parent.InsertBefore(newParagraph, originalParagraph);
 
             // обновим значения после сокращения
             lastRunIndex -= firstRunIndex;
@@ -331,7 +498,7 @@ class DocxReportGenerator
         if (lastRunIndex < (originalRuns.Count() - 1))
         {
             Paragraph newParagraph = SplitParagraph(originalParagraph, lastRunIndex + 1)!;
-            originalParagraph.InsertBeforeSelf(newParagraph);
+            originalParagraph.Parent.InsertBefore(newParagraph, originalParagraph);
         }
     }
 
@@ -341,6 +508,7 @@ class DocxReportGenerator
             return null;
 
         Paragraph newParagraph = (Paragraph)originalParagraph.CloneNode(true);
+        //newParagraph. = originalParagraph.Parent;
 
         var runs = originalParagraph.Elements<Run>().ToList();
         var newRuns = newParagraph.Elements<Run>().ToList();

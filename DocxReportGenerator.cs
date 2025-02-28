@@ -208,18 +208,18 @@ class DocxReportGenerator
     }
 
     /// <summary>
-    /// Заполнение обычных тэгов и таблиц в множестве OpenXMLElement -ов
+    /// Заполнение обычных тэгов и таблиц в OpenXMLElement
     /// </summary>
     /// <param name="elements"></param>
     /// <param name="data"></param>
     /// <exception cref="Exception"></exception>
-    private static void ReplacePlaceholders(OpenXmlElement element, object data, bool allowRow = false)
+    private static void ReplacePlaceholders(OpenXmlElement element, object data)
     {
         Dictionary<string, string> replacements = CollectPropertyValues(data);
         Dictionary<string, int> tableCounters = new Dictionary<string, int>();
 
         //element либо Table либо Paragraph
-        if (!(element is Paragraph) && !(element is Table) && !(allowRow && (element is TableRow)))
+        if (!(element is Paragraph) && !(element is Table))
             throw new Exception("Неверное использование функции ReplacePlaceholders()");
         
         //Вставка обычных тэгов
@@ -228,21 +228,10 @@ class DocxReportGenerator
             var keyTag = $"{{{key}}}";
 
             int i = 0, maxIterations = 1000; 
-            
-            if (element.InnerText.Contains("ConclusionsFromPreliminaryAnalysis"))
-            {
-                var y = 0;
-            }
-
             for (i = 0; (i < maxIterations) && (element.InnerText.Contains(keyTag)); i++)
             {
                 //{ключ} может оказаться разбитым по нескольким Text или даже Run
                 //Поэтому явно вынесем его в один Text одного Run
-                
-                if(key == "ConclusionsFromPreliminaryAnalysis")
-                {
-                    var y = 0;
-                }
 
                 var run = DocxTemplateTools.MoveTagIntoSingleTextOfRun(element.Descendants<Run>().ToList(), keyTag);
 
@@ -267,9 +256,13 @@ class DocxReportGenerator
         //Вставка табличных значений
         if(element is Table table)
         {
-            var tableRows = table.Elements<TableRow>();
-            foreach (TableRow tableRow in tableRows)
+            var tableRows = table.Elements<TableRow>().ToList();
+            for (int i = 0; i < tableRows.Count(); i ++)
             {
+                var tableRow = tableRows[i];
+
+                var ttt = tableRow.InnerText;
+
                 var matches = DocxTemplateTools.tableRowRegex.Matches(tableRow.InnerText);
 
                 var tableTags = matches
@@ -307,7 +300,7 @@ class DocxReportGenerator
                 foreach (var item in list)
                 {
                     var newRow = (TableRow)tableRow.CloneNode(true);
-                    ReplacePlaceholders(newRow, item, allowRow: true);
+                    ReplaceTableRowPlaceholders(newRow, item);
                     lastInsertedRow.InsertAfterSelf(newRow);
                     lastInsertedRow = newRow; // Update last inserted row reference
                 }
@@ -315,6 +308,36 @@ class DocxReportGenerator
                 // Remove the original template row with placeholders
                 tableRow.Remove();
             }            
+        }
+    }
+
+    public static void ReplaceTableRowPlaceholders(TableRow tableRow, object data)
+    {
+        if (tableRow == null || data == null) return;
+
+        Type dataType = data.GetType();
+        Dictionary<string, string> replacements = CollectPropertyValues(data);
+
+        foreach (var cell in tableRow.Elements<TableCell>())
+        {
+            string originalText = cell.InnerText;
+            foreach (var key in replacements.Keys)
+            {
+                string placeholder = $"{{#TableRow:{dataType.Name}:{key}}}";
+
+                if (originalText.Contains(placeholder))
+                {
+                    foreach (Paragraph cellParagraph in cell.Elements<Paragraph>().Skip(1))
+                    {
+                        cellParagraph.Remove();
+                    }
+
+                    var firstParagraph = cell.GetFirstChild<Paragraph>();
+
+                    firstParagraph.RemoveAllChildren<Run>();
+                    firstParagraph.AppendChild(new Run(new Text(replacements[key])));
+                }
+            }
         }
     }
 
@@ -326,12 +349,6 @@ class DocxReportGenerator
         Type type = obj.GetType();
         foreach (PropertyInfo property in type.GetProperties())
         {
-
-            if (property.Name == "ConclusionsFromPreliminaryAnalysis")
-            {
-                var y = 0;
-            }
-
             if (property.PropertyType == typeof(string))
             {
                 values[property.Name] = property.GetValue(obj)?.ToString() ?? "";

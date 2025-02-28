@@ -321,7 +321,7 @@ class DocxReportGenerator
         return values;
     }
 
-    static void NormalizeDocument(string filePath)
+    public static void NormalizeDocument(string filePath)
     {
         using (WordprocessingDocument doc = WordprocessingDocument.Open(filePath, true))
         {

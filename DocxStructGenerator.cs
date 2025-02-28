@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 
@@ -19,6 +20,7 @@ class DocxStructGenerator
 
     public static void Main()
     {
+        DocxReportGenerator.NormalizeDocument(filePath);
         var parsedBlocks = ParseDocx(filePath, "");
         string generatedCode = GenerateDtoClass(parsedBlocks);
 
@@ -29,6 +31,7 @@ class DocxStructGenerator
     public static List<BlockDefinition> ParseDocx(string filePath, string dtoName)
     {
         List<BlockDefinition> blocks = new List<BlockDefinition>();
+        List<BlockDefinition> tableBlocks = new List<BlockDefinition>();
         Stack<BlockDefinition> stack = new Stack<BlockDefinition>();
 
         string fileName = String.IsNullOrEmpty(dtoName) ? Path.GetFileNameWithoutExtension(filePath) + "Dto" : dtoName;
@@ -41,14 +44,14 @@ class DocxStructGenerator
             Regex blockStartRegex = new Regex(@"\{#(RepeatableBlockStart|BlockStart):([\w\d_]+):([\w\d_]+)\}");
             Regex blockEndRegex = new Regex(@"\{#(RepeatableBlockEnd|BlockEnd):([\w\d_]+):([\w\d_]+)\}");
             Regex fieldRegex = new Regex(@"\{([\w\d_]+)\}");
-            Regex tableRowRegex = new Regex(@"\{#TableRow:([\w\d_]+)\.([\w\d_]+)\}");
+            Regex tableRowRegex = new Regex(@"\{#TableRow:([\w\d_]+)\:([\w\d_]+)\}");
 
             var mainBlock = new BlockDefinition(fileName, "", false);
             stack.Push(mainBlock);
 
-            foreach (var para in body.Descendants<Paragraph>())
+            foreach (var element in body.Elements<OpenXmlElement>())
             {
-                string text = para.InnerText.Trim();
+                string text = element.InnerText.Trim();
 
                 // Detect block start
                 var startMatch = blockStartRegex.Match(text);
@@ -86,26 +89,68 @@ class DocxStructGenerator
                 var tableMatch = tableRowRegex.Match(text);
                 if (tableMatch.Success)
                 {
-                    string structName = tableMatch.Groups[1].Value;
-                    string cellName = tableMatch.Groups[2].Value;
-
-                    var parentBlock = stack.Peek();
-                    var tableBlock = parentBlock.Children.FirstOrDefault(b => b.Name == structName);
-                    if (tableBlock == null)
+                    foreach (TableRow tableRow in ((Table)element).Elements<TableRow>())
                     {
-                        tableBlock = new BlockDefinition(structName, structName + "List", true);
-                        parentBlock.Children.Add(tableBlock);
+                        //Каждый ряд таблицы может иметь набор тэгов таблицы (не более одного набора)
+                        //Если таковой имеется - генерируем соответствующий класс и поле в материнской структуре
+
+                        var rowText = tableRow.InnerText;
+                        var tableRowMatches = tableRowRegex.Matches(rowText);
+
+                        if(!tableRowMatches.Any())
+                            continue;
+
+                        var tableTags = tableRowMatches
+                            .Select(match => match.Groups[1].Value)
+                            .Distinct();
+
+                        if(tableTags.Count() > 1)
+                        {
+                            throw new Exception("Нарушение разметки! Больше одно набора тэгов таблицы в одном ряду!");
+                        }
+
+                        string currentTableClassName = tableRowMatches[0].Groups[1].Value;
+                        List<string> cellNames = tableRowMatches.Select(match => match.Groups[2].Value).ToList();
+
+                        var existingTableClass = tableBlocks.SingleOrDefault(classDefinition => classDefinition.Name == currentTableClassName);
+
+                        if (existingTableClass != null)
+                        {
+                            if (cellNames.Except(existingTableClass.Fields).Any())
+                                throw new Exception("Дублирующее описание TableRow с иным набором полей");
+
+                        }
+
+                        var parentBlock = stack.Peek();
+                        var tablePropertiesOfThisType = parentBlock.Children.Where(b => b.Name == currentTableClassName);
+
+                        //Добавим индекс таблицы в название на случай если нужно несколько таблиц одного типа в блоке
+                        var newTableProperty = new BlockDefinition(currentTableClassName, currentTableClassName + "List" + tablePropertiesOfThisType.Count().ToString(), true);
+
+                        foreach(string cellName in tableRowMatches.Select(match => match.Groups[2].Value))
+                            newTableProperty.Fields.Add(cellName);
+
+                        if (existingTableClass is null)
+                            tableBlocks.Add(newTableProperty);
+
+                        parentBlock.Children.Add(newTableProperty);
                     }
-                    tableBlock.Fields.Add(cellName);
-                    continue;
                 }
 
                 // Detect fields inside blocks
-                var fieldMatch = fieldRegex.Match(text);
-                if (fieldMatch.Success && stack.Count > 0)
+                var fieldMatches = fieldRegex.Matches(text);
+                if (stack.Count > 0)
                 {
-                    stack.Peek().Fields.Add(fieldMatch.Groups[1].Value);
+                    var fields = stack.Peek().Fields;
+                    foreach (Match match in fieldMatches)
+                    {
+                        if (match.Success)
+                        {
+                            fields.Add(match.Groups[1].Value);
+                        }
+                    }
                 }
+
             }
 
             blocks.Add(stack.Pop());
@@ -113,7 +158,7 @@ class DocxStructGenerator
 
         blocks.Reverse();
 
-        return blocks;
+        return blocks.Concat(tableBlocks.Distinct()).ToList();
     }
 
     public static string GenerateDtoClass(List<BlockDefinition> blocks)
@@ -124,13 +169,13 @@ class DocxStructGenerator
 
         foreach (var block in blocks)
         {
-            GenerateStruct(sb, block, 0);
+            GenerateClass(sb, block, 0);
         }
 
         return sb.ToString();
     }
 
-    private static void GenerateStruct(StringBuilder sb, BlockDefinition block, int indentLevel)
+    private static void GenerateClass(StringBuilder sb, BlockDefinition block, int indentLevel)
     {
         sb.AppendLine();
         string indent = new string(' ', indentLevel * 4);
@@ -162,12 +207,6 @@ class DocxStructGenerator
         }
 
         sb.AppendLine($"{indent}}}");
-
-        // Generate nested table row DTOs
-        foreach (var child in block.Children)
-        {
-            GenerateStruct(sb, child, indentLevel);
-        }
     }
 }
 

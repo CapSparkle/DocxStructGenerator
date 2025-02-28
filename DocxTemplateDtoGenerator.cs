@@ -20,7 +20,7 @@ class DocxTemplateDtoGenerator
 
     public static void Main()
     {
-        DocxTemplateTools.NormalizeDocument(filePath);
+        //DocxTemplateTools.NormalizeDocument(filePath);
         var parsedBlocks = ParseDocx(filePath, "");
         string generatedCode = GenerateClasses(parsedBlocks);
 
@@ -41,12 +41,19 @@ class DocxTemplateDtoGenerator
             var body = doc.MainDocumentPart.Document.Body;
             if (body == null) return blocks;
 
+            if (body.InnerText.Contains("AreaOfPremisesLeased"))
+            {
+                var t = 0;
+            }
+
             var mainBlock = new DocxTemplateBlockDefinition(fileName, "", false);
             stack.Push(mainBlock);
 
             foreach (var element in body.Elements<OpenXmlElement>())
             {
                 string text = element.InnerText.Trim();
+
+       
 
                 // Detect block start
                 var startMatch = DocxTemplateTools.blockStartRegex.Match(text);
@@ -55,11 +62,6 @@ class DocxTemplateDtoGenerator
                     string structName = startMatch.Groups[2].Value;
                     string propertyName = startMatch.Groups[3].Value;
                     bool isRepeatable = startMatch.Groups[1].Value == "RepeatableBlockStart";
-
-                    if(structName == "CompositionOfTheComplex")
-                    {
-                        var r = 0;
-                    }
 
                     DocxTemplateBlockDefinition newBlock = new DocxTemplateBlockDefinition(structName, propertyName, isRepeatable);
                     if (stack.Count > 0)

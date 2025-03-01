@@ -43,6 +43,7 @@ using System.Threading.Tasks;
                 }),
                 CompositionOfTheComplex = GenerateList(() => new CompositionOfTheComplex
                 {
+                    blockIndex = "1",
                     IsBuilding = "Yes",
                     IsConstraction = "No",
                     IsUnfinishedConstruction = "No",

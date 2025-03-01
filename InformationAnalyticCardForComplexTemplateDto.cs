@@ -26,6 +26,7 @@ public class InformationAnalyticCardForComplexTemplateDto
 
 public class CompositionOfTheComplex
 {
+    public string blockIndex { get; set; }
     public string IsBuilding { get; set; }
     public string IsConstraction { get; set; }
     public string IsUnfinishedConstruction { get; set; }

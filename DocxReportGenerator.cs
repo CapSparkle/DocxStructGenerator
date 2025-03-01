@@ -59,7 +59,7 @@ class DocxReportGenerator
                 }
 
 
-                ProcessRepeatableBlocks(bodyElements, data);
+                ProcessBlock(bodyElements, data);
 
                 // Step 2: Replace all placeholders in remaining text
                 //ReplacePlaceholders(body, data);
@@ -69,7 +69,7 @@ class DocxReportGenerator
         }
     }
 
-    private static void ProcessRepeatableBlocks(List<OpenXmlElement> docElements, object data)
+    private static void ProcessBlock(List<OpenXmlElement> docElements, object data)
     {
         for (int i = 0; i < docElements.Count; i++)
         {
@@ -107,7 +107,7 @@ class DocxReportGenerator
                     throw new Exception("Template markup syntax error");
 
                 // Extract all paragraphs between start & end tags
-                var blockContent = ExtractBlockContent(docElements, paragraph, endTagParagraph);
+                var blockContent = GetBlockContent(docElements, paragraph, endTagParagraph);
                 if (blockContent.Count == 0)  
                     continue;
 
@@ -122,7 +122,7 @@ class DocxReportGenerator
                     var value = property.GetValue(data);
                     if (value != null)
                     {
-                        ProcessRepeatableBlocks(blockContent, value);
+                        ProcessBlock(blockContent, value);
                     }
                 }
                 // If it's a repeatable block (list of objects)
@@ -143,16 +143,17 @@ class DocxReportGenerator
                             var clonedBlock = blockContent.Select(el => el.CloneNode(true))
                                 .ToList();
 
-                            ProcessRepeatableBlocks(blockContent, current);
+                            ProcessBlock(blockContent, current);
 
                             while (enumerator.MoveNext()) 
                             {
                                 current = enumerator.Current;
 
                                 var lastBlockElement = blockContent.Last();
+                                SetNumberingIds(clonedBlock);
                                 foreach (var element in clonedBlock)
                                 {
-                                    lastBlockElement.Parent.InsertBefore(element, lastBlockElement);
+                                    lastBlockElement.Parent.InsertAfter(element, lastBlockElement);
                                     lastBlockElement = element;
                                 }
 
@@ -160,7 +161,7 @@ class DocxReportGenerator
 
                                 clonedBlock = blockContent.Select(el => el.CloneNode(true)).ToList();
 
-                                ProcessRepeatableBlocks(blockContent, current);
+                                ProcessBlock(blockContent, current);
                             }
                         }
                     }
@@ -180,7 +181,7 @@ class DocxReportGenerator
         }
     }
 
-    private static List<OpenXmlElement> ExtractBlockContent(List<OpenXmlElement> docElements, Paragraph startTag, Paragraph endTag)
+    private static List<OpenXmlElement> GetBlockContent(List<OpenXmlElement> docElements, Paragraph startTag, Paragraph endTag)
     {
         List<OpenXmlElement> blockContent = new List<OpenXmlElement>();
         bool insideBlock = false;
@@ -261,8 +262,6 @@ class DocxReportGenerator
             {
                 var tableRow = tableRows[i];
 
-                var ttt = tableRow.InnerText;
-
                 var matches = DocxTemplateTools.tableRowRegex.Matches(tableRow.InnerText);
 
                 var tableTags = matches
@@ -277,7 +276,7 @@ class DocxReportGenerator
                     continue;
 
                 // Extract property name from the tag
-                string propertyName = tableTags.Single(); //((Match)matchGroups.First().First()).Value.Trim('{', '}').Split(":")[1];
+                string propertyName = tableTags.Single();
 
                 if (tableCounters.ContainsKey(propertyName))
                     tableCounters[propertyName] += 1;
@@ -300,7 +299,7 @@ class DocxReportGenerator
                 foreach (var item in list)
                 {
                     var newRow = (TableRow)tableRow.CloneNode(true);
-                    ReplaceTableRowPlaceholders(newRow, item);
+                    ReplacePlaceholders(newRow, item);
                     lastInsertedRow.InsertAfterSelf(newRow);
                     lastInsertedRow = newRow; // Update last inserted row reference
                 }
@@ -311,7 +310,7 @@ class DocxReportGenerator
         }
     }
 
-    public static void ReplaceTableRowPlaceholders(TableRow tableRow, object data)
+    public static void ReplacePlaceholders(TableRow tableRow, object data)
     {
         if (tableRow == null || data == null) return;
 
@@ -361,5 +360,25 @@ class DocxReportGenerator
 
         }
         return values;
+    }
+
+    private static void SetNumberingIds(List<OpenXmlElement> blockContent)
+    {
+        var numbPrList = blockContent
+            .SelectMany(element => element.Descendants<NumberingProperties>())
+            .ToList();
+
+        int numberOfNumberings = numbPrList
+            .Select(numPr => numPr.NumberingId.Val.Value)
+            .Distinct()
+            .Count();
+
+        if (numberOfNumberings > 0) { 
+            var t = 0; }
+
+        foreach (NumberingProperties numbPr in numbPrList) {
+            if(numbPr.NumberingId?.Val != null)
+                numbPr.NumberingId.Val += numberOfNumberings;
+        }
     }
 }

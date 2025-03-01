@@ -41,11 +41,6 @@ class DocxTemplateDtoGenerator
             var body = doc.MainDocumentPart.Document.Body;
             if (body == null) return blocks;
 
-            if (body.InnerText.Contains("AreaOfPremisesLeased"))
-            {
-                var t = 0;
-            }
-
             var mainBlock = new DocxTemplateBlockDefinition(fileName, "", false);
             stack.Push(mainBlock);
 
@@ -158,7 +153,14 @@ class DocxTemplateDtoGenerator
 
         blocks.Reverse();
 
-        return blocks.Concat(tableBlocks).ToList();
+        blocks = blocks.Concat(tableBlocks).ToList();
+
+        foreach(var block in blocks)
+        {
+            block.Fields = block.Fields.Distinct().ToList();
+        }
+
+        return blocks;
     }
 
     public static string GenerateClasses(List<DocxTemplateBlockDefinition> blocks)

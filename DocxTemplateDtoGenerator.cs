@@ -31,7 +31,7 @@ class DocxTemplateDtoGenerator
     public static List<DocxTemplateBlockDefinition> ParseDocx(string filePath, string dtoName)
     {
         List<DocxTemplateBlockDefinition> blocks = new List<DocxTemplateBlockDefinition>();
-        List<DocxTemplateBlockDefinition> tableBlocks = new List<DocxTemplateBlockDefinition>();
+        List<DocxTemplateBlockDefinition> tables = new List<DocxTemplateBlockDefinition>();
         Stack<DocxTemplateBlockDefinition> stack = new Stack<DocxTemplateBlockDefinition>();
 
         string fileName = String.IsNullOrEmpty(dtoName) ? Path.GetFileNameWithoutExtension(filePath) + "Dto" : dtoName;
@@ -47,8 +47,6 @@ class DocxTemplateDtoGenerator
             foreach (var element in body.Elements<OpenXmlElement>())
             {
                 string text = element.InnerText.Trim();
-
-       
 
                 // Detect block start
                 var startMatch = DocxTemplateTools.blockStartRegex.Match(text);
@@ -76,7 +74,7 @@ class DocxTemplateDtoGenerator
                     {
                         var block = stack.Pop();
                         block.Children.Reverse();
-                        block.Fields.Reverse();
+                        block.StringFields.Reverse();
                         blocks.Add(block);
                     }
                     continue;
@@ -109,11 +107,11 @@ class DocxTemplateDtoGenerator
                         string currentTableClassName = tableRowMatches[0].Groups[2].Value;
                         List<string> cellNames = tableRowMatches.Select(match => match.Groups[3].Value).ToList();
 
-                        var existingTableClass = tableBlocks.SingleOrDefault(classDefinition => classDefinition.Name == currentTableClassName);
+                        var existingTableClass = tables.SingleOrDefault(classDefinition => classDefinition.Name == currentTableClassName);
 
                         if (existingTableClass != null)
                         {
-                            if (cellNames.Except(existingTableClass.Fields).Any())
+                            if (cellNames.Except(existingTableClass.StringFields).Any())
                                 throw new Exception("Дублирующее описание TableRow с иным набором полей");
                         }
 
@@ -121,13 +119,15 @@ class DocxTemplateDtoGenerator
                         var tablePropertiesOfThisType = parentBlock.Children.Where(b => b.Name == currentTableClassName);
 
                         //Добавим индекс таблицы в название на случай если нужно несколько таблиц одного типа в блоке
-                        var newTableProperty = new DocxTemplateBlockDefinition(currentTableClassName, currentTableClassName + "List" + tablePropertiesOfThisType.Count().ToString(), true);
+                        var newTableProperty = new DocxTemplateBlockDefinition(
+                            currentTableClassName, 
+                            currentTableClassName + "List" + tablePropertiesOfThisType.Count().ToString(),
+                            true);
 
-                        foreach(string cellName in tableRowMatches.Select(match => match.Groups[3].Value))
-                            newTableProperty.Fields.Add(cellName);
+                        foreach (string cellName in tableRowMatches.Select(match => match.Groups[3].Value))
+                            newTableProperty.StringFields.Add(cellName);
 
-                        if (existingTableClass is null)
-                            tableBlocks.Add(newTableProperty);
+                        tables.Add(newTableProperty);
 
                         parentBlock.Children.Add(newTableProperty);
                     }
@@ -135,9 +135,10 @@ class DocxTemplateDtoGenerator
 
                 // Detect fields inside blocks
                 var fieldMatches = DocxTemplateTools.fieldRegex.Matches(text);
+                var photoListMatches = DocxTemplateTools.photoFieldRegex.Matches(text);
                 if (stack.Count > 0)
                 {
-                    var fields = stack.Peek().Fields;                    
+                    var fields = stack.Peek().StringFields;                    
                     foreach (Match match in fieldMatches.Reverse())
                     {
                         if (match.Success)
@@ -145,6 +146,16 @@ class DocxTemplateDtoGenerator
                             fields.Add(match.Groups[1].Value);
                         }
                     }
+
+                    var photoFields = stack.Peek().PhotoListFields;
+                    foreach (Match match in photoListMatches.Reverse())
+                    {
+                        if (match.Success)
+                        {
+                            photoFields.Add(match.Groups[2].Value);
+                        }
+                    }
+
                 }
             }
 
@@ -153,11 +164,11 @@ class DocxTemplateDtoGenerator
 
         blocks.Reverse();
 
-        blocks = blocks.Concat(tableBlocks).ToList();
+        blocks = blocks.Concat(tables).ToList();
 
         foreach(var block in blocks)
         {
-            block.Fields = block.Fields.Distinct().ToList();
+            block.StringFields = block.StringFields.Distinct().ToList();
         }
 
         return blocks;
@@ -185,9 +196,15 @@ class DocxTemplateDtoGenerator
         sb.AppendLine($"{indent}{{");
 
         // Fields (Simple text placeholders)
-        foreach (var field in block.Fields)
+        foreach (var field in block.StringFields)
         {
             sb.AppendLine($"{indent}    public string {field} {{ get; set; }}");
+        }
+
+        // Fields (Simple text placeholders)
+        foreach (var field in block.PhotoListFields)
+        {
+            sb.AppendLine($"{indent}    public List<PhotoDto> {field} {{ get; set; }}");
         }
 
         // Tables (Generate List<T> for table rows)

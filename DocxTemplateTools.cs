@@ -16,7 +16,9 @@ public static class DocxTemplateTools
     public static Regex blockTagStartRegex = new Regex(@"\{#");
     public static Regex blockTagEndRegex = new Regex(@"\}");
     public static Regex tableRowRegex = new Regex(@"\{#(TableRow):([\w\d_]+):([\w\d_]+)\}");
+
     public static Regex fieldRegex = new Regex(@"\{([\w\d_]+)\}");
+    public static Regex photoFieldRegex = new Regex(@"\{(Photos):([\w\d_]+)\}");
 
     public static void NormalizeDocument(string filePath)
     {
